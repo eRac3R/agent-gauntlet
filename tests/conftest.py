@@ -1,6 +1,9 @@
 import os
 
 os.environ["GAUNTLET_SKIP_DOTENV"] = "1"  # before any app import: never touch the real database in tests
+os.environ["DEEPEVAL_DISABLE_DOTENV"] = "1"  # deepeval would otherwise autoload .env.local on import
+for _k in ("DATABASE_URL", "GAUNTLET_LLM_BASE_URL", "GAUNTLET_LLM_MODEL", "GAUNTLET_LLM_API_KEY"):
+    os.environ.pop(_k, None)
 
 import pytest
 
