@@ -52,7 +52,9 @@ def agents():
 @app.get("/config")
 def config():
     """Tells the dashboard whether a real model is wired up so it can default to it."""
-    llm = bool(os.getenv("GAUNTLET_LLM_API_KEY") or os.getenv("GAUNTLET_LLM_BASE_URL"))
+    base = os.getenv("GAUNTLET_LLM_BASE_URL", "")
+    local = "localhost" in base or "127.0.0.1" in base  # local servers (Ollama) need no key
+    llm = bool(os.getenv("GAUNTLET_LLM_API_KEY") or (base and local))
     return {"llm_configured": llm, "default_agent": "llm" if llm else "naive"}
 
 
