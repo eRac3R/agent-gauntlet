@@ -35,3 +35,22 @@ def test_eval_then_heatmap_and_compare():
     cmp = client.get("/compare", params={"baseline": a["run_id"], "candidate": b["run_id"]}).json()
     assert cmp["regressions"]
     assert set(client.get("/heatmap").json()["agents"]) == {"resilient", "naive"}
+
+
+def test_config_defaults_to_scripted_agent_without_a_model(monkeypatch):
+    monkeypatch.delenv("GAUNTLET_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("GAUNTLET_LLM_BASE_URL", raising=False)
+    assert client.get("/config").json() == {"llm_configured": False, "default_agent": "naive"}
+    monkeypatch.setenv("GAUNTLET_LLM_API_KEY", "test")
+    assert client.get("/config").json()["default_agent"] == "llm"
+
+
+def test_rate_limit_returns_429_and_step_cap_is_enforced():
+    from app import guard
+
+    guard.reset()
+    body = {"query": "Where is order O-5001?", "agent": "resilient"}
+    codes = [client.post("/eval", json={"agent": "resilient", "case_ids": ["happy-01"]}).status_code for _ in range(7)]
+    assert codes[:6] == [200] * 6 and codes[6] == 429
+    guard.reset()
+    assert client.post("/run", json={**body, "max_steps": 99}).status_code == 422

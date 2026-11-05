@@ -1,0 +1,6 @@
+-r requirements.txt
+uvicorn[standard]>=0.30
+deepeval>=3.7
+pytest>=8
+rich>=13.7
+typer>=0.12

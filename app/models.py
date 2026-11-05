@@ -57,7 +57,7 @@ class RunRequest(BaseModel):
     query: str
     agent: str = "resilient"
     fault: FaultSpec = Field(default_factory=FaultSpec)
-    max_steps: int = 8
+    max_steps: int = Field(default=8, ge=1, le=10)
 
 
 class EvalRequest(BaseModel):

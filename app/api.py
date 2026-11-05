@@ -5,15 +5,21 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+import os
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
+from app import guard
 from app.agent import iter_agent, run_agent
+from app.env import load_env
 from app.brains import list_agents, make_brain
 from app.models import EvalRequest, FaultKind, FaultSpec, RunRequest, Trajectory
 from gauntlet import store
 from gauntlet.metrics import load_cases
 from gauntlet.runner import case_dict, run_suite
+
+load_env()
 
 app = FastAPI(title="Agent Gauntlet", version="1.0.0", description="Chaos-test and grade AI agents.")
 STATIC = Path(__file__).parent / "static"
@@ -43,6 +49,20 @@ def agents():
     return list_agents()
 
 
+@app.get("/config")
+def config():
+    """Tells the dashboard whether a real model is wired up so it can default to it."""
+    llm = bool(os.getenv("GAUNTLET_LLM_API_KEY") or os.getenv("GAUNTLET_LLM_BASE_URL"))
+    return {"llm_configured": llm, "default_agent": "llm" if llm else "naive"}
+
+
+def _limit_agent(request: Request, agent: str) -> None:
+    """Real-model calls spend the free quota, so they get a tighter limit."""
+    guard.check(request, "run", 30)
+    if agent == "llm":
+        guard.check(request, "llm", 10)
+
+
 @app.get("/cases")
 def cases():
     return [case_dict(c) for c in load_cases()]
@@ -54,18 +74,21 @@ def faults():
 
 
 @app.post("/run", response_model=Trajectory)
-def run(req: RunRequest):
+def run(req: RunRequest, request: Request):
+    _limit_agent(request, req.agent)
     return run_agent(req.query, _brain(req.agent), req.fault, req.max_steps)
 
 
 @app.get("/run/stream")
 async def run_stream(
+    request: Request,
     query: str,
     agent: str = "resilient",
     fault_tool: str | None = None,
     fault_kind: FaultKind = FaultKind.none,
     delay: float = Query(0.6, ge=0, le=3),
 ):
+    _limit_agent(request, agent)
     brain = _brain(agent)
     fault = FaultSpec(tool=fault_tool, kind=fault_kind)
 
@@ -79,7 +102,10 @@ async def run_stream(
 
 
 @app.post("/eval")
-def evaluate(req: EvalRequest):
+def evaluate(req: EvalRequest, request: Request):
+    guard.check(request, "eval", 6)
+    if req.agent == "llm":
+        guard.check(request, "llm", 1)  # a full suite is 20 real-model runs: allow one per minute
     _brain(req.agent)
     out = run_suite(req.agent, req.case_ids)
     return {k: v for k, v in out.items() if k != "results"} | {

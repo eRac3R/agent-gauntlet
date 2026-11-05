@@ -89,7 +89,8 @@ const cls = s => s === "ok" ? "" : (s === "empty" || s === "slow" ? "warn" : "ba
 async function init() {
   const agents = await (await fetch("/agents")).json();
   $("agent").innerHTML = Object.keys(agents).map(a => `<option value="${a}" title="${agents[a]}">${a}</option>`).join("");
-  $("agent").value = "naive";
+  const cfg = await (await fetch("/config")).json();
+  $("agent").value = cfg.default_agent;
   const faults = await (await fetch("/faults")).json();
   $("fkind").innerHTML = faults.map(f => `<option>${f}</option>`).join("");
   $("chips").innerHTML = PRESETS.map((p, i) => `<span class="chip" data-i="${i}">${p[0]}</span>`).join("");
