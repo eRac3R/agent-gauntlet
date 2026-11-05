@@ -1,0 +1,339 @@
+[
+  {
+    "id": "happy-01",
+    "category": "happy",
+    "query": "What is the email for customer C-1001?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "lookup_customer"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "alice@example.com"
+    ]
+  },
+  {
+    "id": "happy-02",
+    "category": "happy",
+    "query": "Which plan is customer C-1003 on?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "lookup_customer"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "enterprise"
+    ]
+  },
+  {
+    "id": "happy-03",
+    "category": "happy",
+    "query": "Where is order O-5001?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "get_order"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "shipped"
+    ]
+  },
+  {
+    "id": "happy-04",
+    "category": "happy",
+    "query": "Has order O-5004 been delivered?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "get_order"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "cancelled"
+    ]
+  },
+  {
+    "id": "happy-05",
+    "category": "happy",
+    "query": "Customer C-1002 asks about order O-5002",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "get_order"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "processing"
+    ]
+  },
+  {
+    "id": "happy-06",
+    "category": "happy",
+    "query": "Customer C-1004 wants an update on order O-5003",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "get_order"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "delivered"
+    ]
+  },
+  {
+    "id": "web-01",
+    "category": "web_only",
+    "query": "What is your refund policy?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "web_search"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "30 days"
+    ]
+  },
+  {
+    "id": "web-02",
+    "category": "web_only",
+    "query": "How long does shipping take?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "web_search"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "2 business days"
+    ]
+  },
+  {
+    "id": "error-01",
+    "category": "error",
+    "query": "What is the email for customer C-1001?",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "error"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "error-02",
+    "category": "error",
+    "query": "Which plan is customer C-1005 on?",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "error"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "error-03",
+    "category": "error",
+    "query": "Where is order O-5002?",
+    "fault": {
+      "tool": "get_order",
+      "kind": "error"
+    },
+    "expected_path": [
+      "get_order",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "error-04",
+    "category": "error",
+    "query": "Customer C-1003 wants an update on order O-5005",
+    "fault": {
+      "tool": "get_order",
+      "kind": "error"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "get_order",
+      "web_search"
+    ],
+    "optimal_steps": 3,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "empty-01",
+    "category": "empty",
+    "query": "What plan is customer C-9999 on?",
+    "fault": {
+      "tool": null,
+      "kind": "none"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "empty-02",
+    "category": "empty",
+    "query": "Where is order O-5001?",
+    "fault": {
+      "tool": "get_order",
+      "kind": "empty"
+    },
+    "expected_path": [
+      "get_order",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "empty-03",
+    "category": "empty",
+    "query": "What is the email for customer C-1002?",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "empty"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "timeout-01",
+    "category": "timeout",
+    "query": "Which plan is customer C-1004 on?",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "timeout"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 3,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "timeout-02",
+    "category": "timeout",
+    "query": "Where is order O-5003?",
+    "fault": {
+      "tool": "get_order",
+      "kind": "timeout"
+    },
+    "expected_path": [
+      "get_order",
+      "get_order",
+      "web_search"
+    ],
+    "optimal_steps": 3,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "timeout-03",
+    "category": "timeout",
+    "query": "Customer C-1001 asks about order O-5001",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "timeout"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 3,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "malformed-01",
+    "category": "malformed",
+    "query": "What is the email for customer C-1002?",
+    "fault": {
+      "tool": "lookup_customer",
+      "kind": "malformed"
+    },
+    "expected_path": [
+      "lookup_customer",
+      "web_search"
+    ],
+    "optimal_steps": 2,
+    "answer_contains": [
+      "general guidance"
+    ]
+  },
+  {
+    "id": "slow-01",
+    "category": "slow",
+    "query": "Where is order O-5002?",
+    "fault": {
+      "tool": "get_order",
+      "kind": "slow"
+    },
+    "expected_path": [
+      "get_order"
+    ],
+    "optimal_steps": 1,
+    "answer_contains": [
+      "processing"
+    ]
+  }
+]

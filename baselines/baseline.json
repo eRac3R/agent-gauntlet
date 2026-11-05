@@ -1,0 +1,25 @@
+{
+  "agent": "resilient",
+  "passed": [
+    "empty-01",
+    "empty-02",
+    "empty-03",
+    "error-01",
+    "error-02",
+    "error-03",
+    "error-04",
+    "happy-01",
+    "happy-02",
+    "happy-03",
+    "happy-04",
+    "happy-05",
+    "happy-06",
+    "malformed-01",
+    "slow-01",
+    "timeout-01",
+    "timeout-02",
+    "timeout-03",
+    "web-01",
+    "web-02"
+  ]
+}

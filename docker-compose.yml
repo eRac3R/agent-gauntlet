@@ -1,0 +1,10 @@
+services:
+  gauntlet:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      - GAUNTLET_LLM_BASE_URL=${GAUNTLET_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+    volumes:
+      - gauntlet-data:/data
+volumes:
+  gauntlet-data:

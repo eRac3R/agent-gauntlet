@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Gauntlet</title>
+<style>
+  :root {
+    --bg:#0b0f17; --panel:#121826; --line:#1f2a3d; --text:#e6edf7; --muted:#8a9ab5;
+    --ok:#3ddc97; --warn:#ffb454; --bad:#ff5d73; --accent:#6ea8ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,Segoe UI,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { margin:0; font-size:28px; letter-spacing:-.5px; }
+  h1 span { color:var(--accent); }
+  .sub { color:var(--muted); margin:4px 0 24px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:18px; }
+  h2 { margin:0 0 12px; font-size:13px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+  label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:4px; }
+  input, select { background:#0d1320; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:inherit; }
+  input#q { min-width:320px; flex:1; }
+  button { background:var(--accent); color:#06101f; border:0; border-radius:8px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { font-size:12px; padding:5px 10px; border:1px solid var(--line); border-radius:99px; cursor:pointer; color:var(--muted); }
+  .chip:hover { color:var(--text); border-color:var(--accent); }
+  #timeline { display:flex; flex-direction:column; gap:10px; min-height:60px; }
+  .step { display:grid; grid-template-columns:34px 1fr auto; gap:12px; align-items:center; padding:12px 14px; border-radius:10px;
+          background:#0d1320; border:1px solid var(--line); border-left:4px solid var(--ok); animation:in .35s ease; }
+  .step.bad { border-left-color:var(--bad); } .step.warn { border-left-color:var(--warn); }
+  .step .n { width:28px; height:28px; border-radius:50%; background:var(--line); display:grid; place-items:center; font-size:12px; }
+  .step .tool { font-weight:600; } .step .args, .step .out { color:var(--muted); font:12px ui-monospace,Consolas,monospace; word-break:break-all; }
+  .badge { font-size:11px; padding:3px 9px; border-radius:99px; background:#13301f; color:var(--ok); }
+  .step.bad .badge { background:#3a1620; color:var(--bad); } .step.warn .badge { background:#3a2a12; color:var(--warn); }
+  @keyframes in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  #verdict { margin-top:14px; padding:14px; border-radius:10px; border:1px solid var(--line); display:none; }
+  #verdict .stats { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:13px; margin-top:6px; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { padding:9px 12px; text-align:center; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; color:var(--muted); }
+  td.cell { font-weight:600; }
+  .muted { color:var(--muted); font-size:13px; }
+  @media (max-width:640px) { input#q { min-width:100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Agent <span>Gauntlet</span></h1>
+  <p class="sub">Break the tools. Watch the agent cope. Grade the trajectory.</p>
+
+  <div class="panel">
+    <h2>Live run</h2>
+    <div class="row">
+      <label style="flex:1">Query <input id="q" value="What is the email for customer C-1001?"></label>
+      <label>Agent <select id="agent"></select></label>
+      <label>Break tool <select id="ftool"><option value="">(none)</option><option>lookup_customer</option><option>get_order</option><option>web_search</option></select></label>
+      <label>Fault <select id="fkind"></select></label>
+      <button id="go">Run live</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="timeline" style="margin-top:16px"></div>
+    <div id="verdict"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Chaos suite &middot; pass rate by fault type</h2>
+    <div class="row" style="margin-bottom:14px">
+      <button id="suite">Run 20-case suite on every agent</button>
+      <span class="muted" id="suiteMsg"></span>
+    </div>
+    <div id="heat" class="muted">No runs yet. Click the button.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const PRESETS = [
+  ["Happy path", "What is the email for customer C-1001?", "", "none"],
+  ["DB down", "What is the email for customer C-1001?", "lookup_customer", "error"],
+  ["Timeout", "Which plan is customer C-1004 on?", "lookup_customer", "timeout"],
+  ["Empty result", "Where is order O-5001?", "get_order", "empty"],
+  ["Corrupt payload", "What is the email for customer C-1002?", "lookup_customer", "malformed"],
+];
+const cls = s => s === "ok" ? "" : (s === "empty" || s === "slow" ? "warn" : "bad");
+
+async function init() {
+  const agents = await (await fetch("/agents")).json();
+  $("agent").innerHTML = Object.keys(agents).map(a => `<option value="${a}" title="${agents[a]}">${a}</option>`).join("");
+  $("agent").value = "naive";
+  const faults = await (await fetch("/faults")).json();
+  $("fkind").innerHTML = faults.map(f => `<option>${f}</option>`).join("");
+  $("chips").innerHTML = PRESETS.map((p, i) => `<span class="chip" data-i="${i}">${p[0]}</span>`).join("");
+  document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+    const p = PRESETS[+c.dataset.i]; $("q").value = p[1]; $("ftool").value = p[2]; $("fkind").value = p[3];
+  });
+  loadHeat();
+}
+
+function runLive() {
+  $("go").disabled = true; $("timeline").innerHTML = ""; $("verdict").style.display = "none";
+  const p = new URLSearchParams({ query: $("q").value, agent: $("agent").value, fault_kind: $("fkind").value });
+  if ($("ftool").value) p.set("fault_tool", $("ftool").value);
+  const es = new EventSource("/run/stream?" + p);
+  es.addEventListener("step", e => {
+    const s = JSON.parse(e.data);
+    $("timeline").insertAdjacentHTML("beforeend",
+      `<div class="step ${cls(s.status)}"><div class="n">${s.index + 1}</div>
+        <div><div class="tool">${s.tool} <span class="args">${JSON.stringify(s.args)}</span></div>
+        <div class="out">${s.output.replace(/</g, "&lt;")}</div></div>
+        <div><span class="badge">${s.status} &middot; ${s.latency_ms}ms</span></div></div>`);
+  });
+  es.addEventListener("done", e => {
+    es.close(); $("go").disabled = false;
+    const t = JSON.parse(e.data), v = $("verdict");
+    const stuck = t.stopped_reason === "max_steps";
+    v.style.display = "block"; v.style.borderColor = t.success ? "var(--ok)" : "var(--bad)";
+    v.innerHTML = `<strong>${stuck ? "STUCK: hit the step limit" : (t.success ? "Answered" : "Failed")}</strong><div>${t.answer}</div>
+      <div class="stats"><span>${t.steps.length} steps</span><span>${t.tokens_in + t.tokens_out} tokens (est.)</span><span>$${t.cost_usd.toFixed(5)} (est.)</span></div>`;
+  });
+  es.onerror = () => { es.close(); $("go").disabled = false; };
+}
+
+async function loadHeat() {
+  const h = await (await fetch("/heatmap")).json();
+  if (!h.agents.length) return;
+  const color = r => `rgba(${r < .5 ? "255,93,115" : (r < .9 ? "255,180,84" : "61,220,151")},${0.18 + 0.5 * Math.abs(r - .5) * 2})`;
+  let html = `<table><tr><th>fault type</th>${h.agents.map(a => `<th>${a}</th>`).join("")}</tr>`;
+  for (const c of h.categories) {
+    html += `<tr><td>${c}</td>` + h.agents.map(a => {
+      const r = h.grid[c][a]; return r === undefined ? "<td>-</td>" : `<td class="cell" style="background:${color(r)}">${Math.round(r * 100)}%</td>`;
+    }).join("") + "</tr>";
+  }
+  $("heat").innerHTML = html + "</table>";
+}
+
+async function runSuite() {
+  $("suite").disabled = true;
+  for (const a of Object.keys(await (await fetch("/agents")).json())) {
+    if (a === "llm") continue;
+    $("suiteMsg").textContent = `Running ${a}...`;
+    await fetch("/eval", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agent: a }) });
+    await loadHeat();
+  }
+  $("suiteMsg").textContent = "Done."; $("suite").disabled = false;
+}
+
+$("go").onclick = runLive; $("suite").onclick = runSuite; init();
+</script>
+</body>
+</html>
