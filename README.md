@@ -4,6 +4,8 @@
 
 > Most agent demos only show the happy path. This one shows what happens at 3 a.m. when the database is down.
 
+**Live demo:** https://agent-gauntlet-nine.vercel.app (real model `openai/gpt-oss-120b` on Groq's free tier, runs stored in Neon Postgres; API docs at [`/docs`](https://agent-gauntlet-nine.vercel.app/docs))
+
 <!-- TODO (author, at the end): add screenshot/GIF after recording the demo by hand -->
 
 ## Why this exists
@@ -17,12 +19,12 @@ An agent that answers correctly can still be a production liability: it may call
 | Faults | one hand-coded failure | injectable fault matrix: `error`, `empty`, `timeout`, `malformed`, `slow` on any tool |
 | Metrics | LLM judge only | **deterministic first** (free, reproducible), LLM judge only for subjective recovery quality |
 | Retry logic | any repeat = bad | one retry after a timeout is allowed; endless retries are a stuck loop |
-| Regressions | none | run history in SQLite, `compare` diff, CI gate that fails the build |
+| Regressions | none | run history in Postgres (Alembic migrations), `compare` diff, CI gate that fails the build |
 | Cost | needs a paid API key | full suite runs offline for $0 with scripted agents; real-model mode uses free local/OpenAI-compatible endpoints |
 
 ## Stack
 
-FastAPI (async, SSE streaming) · Pydantic v2 · **DeepEval** (`ToolCorrectnessMetric`, custom `BaseMetric`, `GEval` judge) · pytest · SQLite · Rich + Typer · Docker · GitHub Actions · any OpenAI-compatible LLM (local Ollama by default)
+FastAPI (async, SSE streaming) · Pydantic v2 · **DeepEval** (`ToolCorrectnessMetric`, custom `BaseMetric`, `GEval` judge) · SQLAlchemy 2 + Alembic on **PostgreSQL** (Neon; SQLite locally) · pytest · Rich + Typer · Vercel · Docker · GitHub Actions · any OpenAI-compatible LLM (Groq hosted, Ollama local)
 
 **No vendor lock-in and no paid account needed.** The whole suite runs offline for free. For a real model, point it at a local Ollama server (free forever) or any free-tier OpenAI-compatible API:
 
@@ -41,7 +43,7 @@ py -m venv .venv
 .\.venv\Scripts\pip install -r requirements.txt
 .\.venv\Scripts\python -m gauntlet demo      # live leaderboard + HTML report
 .\.venv\Scripts\python -m gauntlet serve     # dashboard at http://127.0.0.1:8000
-.\.venv\Scripts\python -m pytest             # 35 tests
+.\.venv\Scripts\python -m pytest             # 43 tests, no network or keys needed
 ```
 
 ## The three agents under test
@@ -51,9 +53,13 @@ py -m venv .venv
 | `resilient` | retries a timeout once, then falls back to web search | 20/20 |
 | `naive` | retries the same failing call forever (looks perfect on happy paths!) | 9/20, 11 regressions |
 | `wasteful` | always web-searches first, then does the real work | extra steps and tokens |
-| `llm` | a real model via any OpenAI-compatible endpoint (Ollama by default) | needs a running endpoint |
+| `llm` | a real model via any OpenAI-compatible endpoint | `gpt-oss-120b`: 19/20 live |
 
 `naive` passes every happy-path case. Only fault injection exposes it. That is the point.
+
+**What the real model got wrong:** on `empty-02` (order lookup returns nothing) `gpt-oss-120b` gave generic shipping info without telling the user their order was not found. On an earlier run it also gave up after a single timeout (`timeout-03`) instead of retrying or falling back. Real models fail in ways the scripted agents do not, which is why the suite exists.
+
+**Grader lesson learned:** the first live run scored 40%, but the model was mostly right. The grader matched text literally: the model wrote `30 days` with a narrow no-break space, and phrased "I couldn't get that data" in its own words rather than the scripted marker. `gauntlet/metrics.py` now normalizes Unicode and accepts honest-fallback wording, with a test. Check the grader before you blame the model.
 
 ## How scoring works
 
@@ -88,9 +94,29 @@ CI (`.github/workflows/ci.yml`) runs tests, the gate and uploads the HTML report
 | `GET /heatmap` | pass rate by fault type and agent |
 | `GET /docs` | interactive OpenAPI docs |
 
+## Hosting it yourself for $0
+
+| Piece | Free service | Notes |
+|---|---|---|
+| App | Vercel Hobby | auto-detects `main.py`; Python 3.12 (`.python-version`) |
+| Database | Neon free tier | sleeps after 5 min idle; first request wakes it (handled by `connect_with_retry`) |
+| Model | Groq free tier | per-minute rate limits; the client honours `Retry-After` on 429 |
+
+```powershell
+vercel link
+vercel env add DATABASE_URL production            # Neon *pooled* connection string
+vercel env add GAUNTLET_LLM_BASE_URL production   # https://api.groq.com/openai/v1
+vercel env add GAUNTLET_LLM_MODEL production      # openai/gpt-oss-120b
+vercel env add GAUNTLET_LLM_API_KEY production    # from console.groq.com
+vercel deploy --prod
+```
+
+Swap providers with the same three `GAUNTLET_LLM_*` variables (OpenRouter free models, Gemini free tier, or Ollama locally). Public endpoints are rate-limited per IP (`app/guard.py`), real-model suite runs are capped at one per minute, and `max_steps` is capped at 10.
+
 ## Limitations (honest)
 
-- The mock tools and scripted agents are deterministic stand-ins. The real-model path (`llm` agent, `LocalJudge`) is tested only against a fake OpenAI-compatible server in `tests/test_llm_brain.py`, not yet against a real model. Small local models can be flaky at tool calling.
+- Free tiers can change, sleep or rate-limit. Groq also retires models (the first model chosen, `llama-3.3-70b-versatile`, was gone by deploy time), so the model is an env var, not code.
+- The mock tools are deterministic stand-ins for real backends. Real-model results vary run to run (19/20 and 17/20 seen); one run is not a benchmark.
 - Token figures are **estimates** (chars/4) unless the endpoint reports usage. Dollar cost is a placeholder-price estimate in `app/agent.py` and is $0 for local models.
 - Judge calibration (`py -m gauntlet calibrate`) needs human labels in `datasets/human_labels.json`; none are shipped, so the metric/human agreement number is not claimed.
 - Dockerfile and compose are provided but were not built in the dev environment.

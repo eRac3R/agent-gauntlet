@@ -73,6 +73,7 @@ def database_url() -> str:
 _engines: dict[str, Engine] = {}
 _migrated: set[str] = set()
 _lock = threading.Lock()
+_migrate_lock = threading.Lock()
 
 
 def get_engine() -> Engine:
@@ -106,15 +107,15 @@ def ensure_schema() -> Engine:
 
     engine = get_engine()
     url = database_url()
-    with _lock:
+    # Alembic keeps its context in module globals, so concurrent upgrades in one process collide.
+    with _migrate_lock:
         if url in _migrated:
             return engine
-    connect_with_retry(engine)
-    cfg = Config()
-    cfg.set_main_option("script_location", str(ALEMBIC_DIR))
-    with engine.begin() as conn:
-        cfg.attributes["connection"] = conn
-        command.upgrade(cfg, "head")
-    with _lock:
+        connect_with_retry(engine)
+        cfg = Config()
+        cfg.set_main_option("script_location", str(ALEMBIC_DIR))
+        with engine.begin() as conn:
+            cfg.attributes["connection"] = conn
+            command.upgrade(cfg, "head")
         _migrated.add(url)
     return engine

@@ -2,8 +2,15 @@ from app.agent import run_agent
 from app.brains import make_brain
 from app.models import FaultKind, FaultSpec, Step
 from gauntlet.metrics import (
-    efficiency_score, load_cases, longest_repeat_run, loop_score, path_score, score_case,
+    answer_matches, efficiency_score, load_cases, longest_repeat_run, loop_score, path_score, score_case,
 )
+
+
+def test_answer_match_survives_real_model_typography_and_fallback_wording():
+    assert answer_matches(["30 days"], "Refunds within **30 days** of delivery")  # narrow no-break space
+    assert answer_matches(["general guidance"], "I’m sorry, I wasn’t able to retrieve that record.")
+    assert not answer_matches(["general guidance"], "Customer C-1001's email is a@b.com")
+    assert not answer_matches(["30 days"], "Refunds within 14 days")
 
 
 def _step(i, tool, status="ok", **args):

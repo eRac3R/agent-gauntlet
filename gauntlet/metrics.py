@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -10,6 +11,25 @@ from app.models import FaultSpec, Step, Trajectory
 DATASET = Path(__file__).resolve().parent.parent / "datasets" / "cases.json"
 PASS_THRESHOLD = 0.9
 STUCK_RUN = 3  # this many identical calls in a row = stuck
+# "general guidance" in a case means: admit the specific data was unavailable and fall back.
+# Real models phrase that many ways, so any of these honest-fallback markers counts.
+FALLBACK = "general guidance"
+FALLBACK_MARKERS = (FALLBACK, "unable to", "wasn't able", "was not able", "couldn't", "could not",
+                    "can't", "cannot", "not able to", "don't have", "do not have", "in general", "generally")
+
+
+def normalize(text: str) -> str:
+    """Models emit narrow no-break spaces, curly quotes and odd dashes; compare on plain text."""
+    text = unicodedata.normalize("NFKC", text).lower()
+    for odd, plain in (("’", "'"), ("‘", "'"), ("‐", "-"), ("‑", "-"), ("–", "-")):
+        text = text.replace(odd, plain)
+    return " ".join(text.split())
+
+
+def answer_matches(expected: list[str], answer: str) -> bool:
+    got = normalize(answer)
+    wanted = [m for e in expected for m in (FALLBACK_MARKERS if normalize(e) == FALLBACK else (e,))]
+    return any(normalize(w) in got for w in wanted)
 
 
 @dataclass
@@ -86,7 +106,7 @@ def loop_score(steps: list[Step]) -> float:
 
 
 def score_case(case: Case, traj: Trajectory) -> CaseScore:
-    answer_ok = traj.success and any(s.lower() in traj.answer.lower() for s in case.answer_contains)
+    answer_ok = traj.success and answer_matches(case.answer_contains, traj.answer)
     path = path_score(case.expected_path, traj.path)
     eff = efficiency_score(case.optimal_steps, len(traj.steps))
     loop = loop_score(traj.steps)

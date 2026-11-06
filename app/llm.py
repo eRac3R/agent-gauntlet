@@ -13,6 +13,7 @@ Configure with environment variables (no vendor lock-in, no required account):
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 import httpx
@@ -29,7 +30,9 @@ class LLMClient:
         api_key: str | None = None,
         transport: httpx.BaseTransport | None = None,
         timeout: float = 120.0,
+        retries: int = 4,
     ):
+        self.retries = retries
         self.base_url = (base_url or os.getenv("GAUNTLET_LLM_BASE_URL", DEFAULT_BASE_URL)).rstrip("/")
         self.model = model or os.getenv("GAUNTLET_LLM_MODEL", DEFAULT_MODEL)
         key = api_key or os.getenv("GAUNTLET_LLM_API_KEY", "")
@@ -41,7 +44,12 @@ class LLMClient:
         body: dict[str, Any] = {"model": self.model, "messages": messages, "max_tokens": max_tokens, "temperature": 0}
         if tools:
             body["tools"] = tools
-        resp = self.http.post("/chat/completions", json=body)
+        for attempt in range(self.retries + 1):
+            resp = self.http.post("/chat/completions", json=body)
+            if resp.status_code != 429 or attempt == self.retries:
+                break
+            # Free tiers rate-limit per minute: honour Retry-After, capped so a run cannot hang.
+            time.sleep(min(float(resp.headers.get("retry-after") or 2 ** attempt), 20.0))
         resp.raise_for_status()
         data = resp.json()
         return {**data["choices"][0]["message"], "usage": data.get("usage") or {}}

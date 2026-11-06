@@ -6,3 +6,6 @@ reports/*.html
 .pytest_cache/
 .neon
 .env.local
+
+.vercel
+.env*

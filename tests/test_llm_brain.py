@@ -37,3 +37,17 @@ def test_llm_brain_runs_through_the_agent_loop():
     assert traj.tokens_in == 150 and traj.tokens_out == 30  # real usage from the endpoint is used
     assert seen[0]["tools"][0]["type"] == "function"          # OpenAI tool format
     assert seen[-1]["messages"][-1]["role"] == "tool"         # tool results sent back
+
+
+def test_client_waits_and_retries_on_rate_limit():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, headers={"retry-after": "0"})
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+    client = LLMClient(base_url="http://fake/v1", model="fake", transport=httpx.MockTransport(handler))
+    assert client.chat([{"role": "user", "content": "hi"}])["content"] == "ok"
+    assert len(calls) == 3
